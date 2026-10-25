@@ -12,6 +12,7 @@ using Template.Services.Events;
 using Template.Services.Save;
 using Template.Services.Scenes;
 using Template.Services.Settings;
+using Template.Services.UI;
 using UnityEngine;
 
 namespace Template.Gameplay
@@ -118,14 +119,6 @@ namespace Template.Gameplay
         }
 
         /// <summary>
-        /// The canonical init order (architecture note, M1): save → settings → audio → localization
-        /// → analytics → ads → purchases → UI. Each milestone plugs its services in at its own
-        /// stage, in this method, in this order. Registration order *is* boot order, so this list is
-        /// the contract — reordering lines reorders initialization.
-        ///
-        /// The next slots (localization, analytics, ads, purchases, UI) arrive with M5-M7.
-        /// </summary>
-        /// <summary>
         /// Mobile durability: pause and quit are where Unity warns that the process may vanish, so
         /// pending save state is flushed here (architecture note: save on OnApplicationPause /
         /// OnApplicationQuitting). The game itself saves on its own gameplay events; this hook only
@@ -157,8 +150,10 @@ namespace Template.Gameplay
         }
 
         /// <summary>
-        /// M2 chain: save, settings, audio. The scene loader stays last (in the full list it also
-        /// sits after UI, which arrives in M3).
+        /// M3 chain: save, settings, audio, UI, scene loader. The ProjectSettings notes: save comes
+        /// first because every other service may load defaults, the UI manager hands the
+        /// (DontDestroyOnLoad) overlay its transition cover as a Component, so the loader
+        /// reporting covered transitions comes last.
         /// </summary>
         void RegisterServices(ServiceRegistry registry)
         {
@@ -171,7 +166,28 @@ namespace Template.Gameplay
             audio.Construct(Bus, Services.Get<ISettingsService>());
             registry.Register(audio);
 
-            registry.Register(new DirectSceneLoader());
+            UIManager ui = new UIManager();
+            registry.Register(ui);
+
+            GameObject overlayHost = new GameObject("SceneTransitionOverlay");
+            DontDestroyOnLoad(overlayHost);
+            SceneFadeOverlay overlay = overlayHost.AddComponent<SceneFadeOverlay>();
+
+            registry.Register(new TransitionSceneLoader(Bus, overlay, UnloadUnusedAssetsAsync));
+        }
+
+        /// <summary>
+        /// The loader's after-transition hook (M3 plan: UnloadUnusedAssets after each covered
+        /// load, so twenty transitions do not creep memory with assets the old scene dropped).
+        /// Driven by Awaitable instead of a blocking read of isDone.
+        /// </summary>
+        static async Task UnloadUnusedAssetsAsync()
+        {
+            AsyncOperation unload = Resources.UnloadUnusedAssets();
+            while (!unload.isDone)
+            {
+                await Awaitable.NextFrameAsync();
+            }
         }
     }
 }

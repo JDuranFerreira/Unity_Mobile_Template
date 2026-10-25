@@ -67,6 +67,37 @@ namespace Template.Core.Events
     }
 
     /// <summary>
+    /// A covered scene transition began (fade out started). Screens and gameplay can mute input
+    /// and audio cues on this and listen for <see cref="SceneTransitionCompleted"/> to resume.
+    /// </summary>
+    public readonly struct SceneTransitionStarted : IEvent
+    {
+        public SceneTransitionStarted(string sceneName)
+        {
+            SceneName = sceneName;
+        }
+
+        public string SceneName { get; }
+    }
+
+    /// <summary>
+    /// A covered transition finished: the scene is active and the fade back has completed.
+    /// ElapsedSeconds measures fade-out through fade-in, transition to transition.
+    /// </summary>
+    public readonly struct SceneTransitionCompleted : IEvent
+    {
+        public SceneTransitionCompleted(string sceneName, float elapsedSeconds)
+        {
+            SceneName = sceneName;
+            ElapsedSeconds = elapsedSeconds;
+        }
+
+        public string SceneName { get; }
+
+        public float ElapsedSeconds { get; }
+    }
+
+    /// <summary>
     /// A service threw while initializing. The chain stops here: a later service that depends on
     /// the broken one must not be allowed to start on half-built state.
     /// </summary>
