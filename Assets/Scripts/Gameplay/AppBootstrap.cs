@@ -3,10 +3,15 @@ using System.Threading;
 using System.Threading.Tasks;
 using Template.Core.Boot;
 using Template.Core.Events;
+using Template.Core.Save;
 using Template.Core.Scenes;
 using Template.Core.Services;
+using Template.Core.Settings;
+using Template.Services.Audio;
 using Template.Services.Events;
+using Template.Services.Save;
 using Template.Services.Scenes;
+using Template.Services.Settings;
 using UnityEngine;
 
 namespace Template.Gameplay
@@ -23,6 +28,9 @@ namespace Template.Gameplay
         public const string DefaultFirstScene = "MainMenu";
 
         [SerializeField] string firstSceneName = DefaultFirstScene;
+
+        /// <summary>Keys-to-clips for the audio host. Null is legal: audio then logs misses and plays nothing.</summary>
+        [SerializeField] AudioLibrary audioLibrary;
 
         public static AppBootstrap Instance { get; private set; }
 
@@ -115,10 +123,54 @@ namespace Template.Gameplay
         /// stage, in this method, in this order. Registration order *is* boot order, so this list is
         /// the contract — reordering lines reorders initialization.
         ///
-        /// M1 has one service (the scene loader, which runs last, after UI in the full list).
+        /// The next slots (localization, analytics, ads, purchases, UI) arrive with M5-M7.
         /// </summary>
-        static void RegisterServices(ServiceRegistry registry)
+        /// <summary>
+        /// Mobile durability: pause and quit are where Unity warns that the process may vanish, so
+        /// pending save state is flushed here (architecture note: save on OnApplicationPause /
+        /// OnApplicationQuitting). The game itself saves on its own gameplay events; this hook only
+        /// guarantees that whatever is queued up becomes durable before the process dies.
+        /// </summary>
+        void OnApplicationPause(bool paused)
         {
+            if (paused)
+            {
+                FlushSave();
+            }
+        }
+
+        void OnApplicationQuit()
+        {
+            FlushSave();
+        }
+
+        void FlushSave()
+        {
+            if (Services == null || !Services.TryGet<ISaveService>(out ISaveService save))
+            {
+                return;
+            }
+
+            // Writes are synchronous today, so the flush is already durable when SaveAsync
+            // returned; the fire-and-forget keeps that contract for a future queueing store.
+            _ = save.FlushAsync();
+        }
+
+        /// <summary>
+        /// M2 chain: save, settings, audio. The scene loader stays last (in the full list it also
+        /// sits after UI, which arrives in M3).
+        /// </summary>
+        void RegisterServices(ServiceRegistry registry)
+        {
+            registry.Register(new SaveService(new FileSaveStore(), Bus));
+
+            registry.Register(new SettingsService(Bus, new PlayerPrefsStore()));
+
+            AudioHost audio = gameObject.AddComponent<AudioHost>();
+            audio.Library = audioLibrary;
+            audio.Construct(Bus, Services.Get<ISettingsService>());
+            registry.Register(audio);
+
             registry.Register(new DirectSceneLoader());
         }
     }

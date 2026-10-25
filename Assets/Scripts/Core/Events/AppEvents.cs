@@ -1,5 +1,35 @@
+using Template.Core.Settings;
+
 namespace Template.Core.Events
 {
+    /// <summary>
+    /// One settings value changed. Subscribers apply what they own and ignore the rest (audio
+    /// listens for the volume keys, gameplay for vibration, M5 localization for the language).
+    /// </summary>
+    public readonly struct SettingsChanged : IEvent
+    {
+        public SettingsChanged(SettingsKey key)
+        {
+            Key = key;
+        }
+
+        public SettingsKey Key { get; }
+    }
+
+    /// <summary>A save document was written and is durable as of this event.</summary>
+    public readonly struct SaveWritten : IEvent
+    {
+        public SaveWritten(string key, int version)
+        {
+            Key = key;
+            Version = version;
+        }
+
+        public string Key { get; }
+
+        public int Version { get; }
+    }
+
     /// <summary>Published once, before the first service initializes.</summary>
     public readonly struct AppBootStarted : IEvent
     {
