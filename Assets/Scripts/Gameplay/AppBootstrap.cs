@@ -3,12 +3,18 @@ using System.Threading;
 using System.Threading.Tasks;
 using Template.Core.Boot;
 using Template.Core.Events;
+using Template.Core.Input;
+using Template.Core.Localization;
+using Template.Core.Pooling;
 using Template.Core.Save;
 using Template.Core.Scenes;
 using Template.Core.Services;
 using Template.Core.Settings;
 using Template.Services.Audio;
 using Template.Services.Events;
+using Template.Services.Input;
+using Template.Services.Localization;
+using Template.Services.Pooling;
 using Template.Services.Save;
 using Template.Services.Scenes;
 using Template.Services.Settings;
@@ -150,10 +156,9 @@ namespace Template.Gameplay
         }
 
         /// <summary>
-        /// M3 chain: save, settings, audio, UI, scene loader. The ProjectSettings notes: save comes
-        /// first because every other service may load defaults, the UI manager hands the
-        /// (DontDestroyOnLoad) overlay its transition cover as a Component, so the loader
-        /// reporting covered transitions comes last.
+        /// M3 chain: save, settings, audio, UI, scene loader, input, pooling.
+        /// Save first (everyone loads defaults). UI manager before loader (hands overlay component).
+        /// Input/pooling after the core visual/audio stack — they depend on no one, and no one depends on them yet.
         /// </summary>
         void RegisterServices(ServiceRegistry registry)
         {
@@ -174,6 +179,18 @@ namespace Template.Gameplay
             SceneFadeOverlay overlay = overlayHost.AddComponent<SceneFadeOverlay>();
 
             registry.Register(new TransitionSceneLoader(Bus, overlay, UnloadUnusedAssetsAsync));
+
+            // M4: Input (needs InputActionAsset assigned in the scene or via Resources)
+            InputService input = gameObject.AddComponent<InputService>();
+            registry.Register(input);
+
+            // M4: Pooling (needs PoolFactory on the same GameObject)
+            PoolManager pooling = gameObject.AddComponent<PoolManager>();
+            registry.Register(pooling);
+
+            // M5: Localization
+            LocalizationService localization = gameObject.AddComponent<LocalizationService>();
+            registry.Register(localization);
         }
 
         /// <summary>
