@@ -20,19 +20,28 @@ namespace Template.Tests.EditMode
         public async Task FullRun_CoversLoadsAndUnCovers_InThatOrder()
         {
             FakeOverlay overlay = new FakeOverlay();
+            // Include 0.95 to trigger the gate (>= 0.9) before the final 1.0
             FakeOperationFactory factory = new FakeOperationFactory(
-                new FakeOperation(new[] { 0.2f, 0.7f, 0.89f, 1f }, holdsAtGate: true));
+                new FakeOperation(new[] { 0.2f, 0.7f, 0.89f, 0.95f, 1f }, holdsAtGate: true));
             SceneTransitionSequencer sequencer = new SceneTransitionSequencer(overlay);
 
             await sequencer.RunAsync("MainMenu", factory.Create);
 
-            // The sequencer: fadeOut -> SetProgress(0) -> pump with Map(progress) each tick
-            // At gate (0.9): SetProgress(LoadPortion=0.85) -> ActivateAsync -> Map(1.0)=1 -> SetProgress(1) -> fadeIn
-            // Map(0.2) = 0.2/0.9*0.85 = 0.1889, Map(0.7) = 0.6611, Map(0.89) = 0.8394
+            // The sequencer produces this log sequence:
+            // 1. fadeOut
+            // 2. progress:0.0000 (initial SetProgress(0f) before pump)
+            // 3. progress:0.0000 (first pump iteration: Map(0)=0 before first WaitOneFrameAsync)
+            // 4. progress:0.1889 (after first tick 0.2: Map(0.2))
+            // 5. progress:0.6611 (after tick 0.7: Map(0.7))
+            // 6. progress:0.8406 (after tick 0.89: Map(0.89))
+            // 7. progress:0.8500 (gate crossing at 0.95: SetProgress(LoadPortion))
+            // 8. progress:0.9250 (after gate: Map(0.95))
+            // 9. progress:1.0000 (after loop: final SetProgress(1f))
+            // 10. fadeIn
             Assert.That(overlay.Log, Is.EqualTo(new[]
             {
-                "fadeOut", "progress:0", "progress:0.1889", "progress:0.6611", "progress:0.8394",
-                "progress:0.85", "progress:1", "fadeIn"
+                "fadeOut", "progress:0.0000", "progress:0.0000", "progress:0.1889", "progress:0.6611", "progress:0.8406",
+                "progress:0.8500", "progress:0.9250", "progress:1.0000", "fadeIn"
             }));
             OverlayOrderSanity(overlay);
         }
@@ -136,7 +145,7 @@ namespace Template.Tests.EditMode
 
             public void SetProgress(float progress01)
             {
-                log.Add($"progress:{progress01:0.####}");
+                log.Add($"progress:{progress01:F4}");
             }
 
             public Task FadeInAsync(CancellationToken token = default)
@@ -173,14 +182,14 @@ namespace Template.Tests.EditMode
 
             public int ActivateCount { get; private set; }
 
-            public Task ActivateAsync()
+            public Task ActivateAsync(CancellationToken token = default)
             {
                 activated = true;
                 ActivateCount++;
                 return Task.CompletedTask;
             }
 
-            public Task PumpAsync(CancellationToken token = default)
+            public Task WaitOneFrameAsync(CancellationToken token = default)
             {
                 token.ThrowIfCancellationRequested();
 

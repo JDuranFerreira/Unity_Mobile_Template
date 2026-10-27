@@ -21,5 +21,6 @@
         "UNITY_INCLUDE_TESTS"
     ],
     "versionDefines": [],
-    "noEngineReferences": false
+    "noEngineReferences": false,
+    "compilerOptions": "-nowarn:CS0619"
 }

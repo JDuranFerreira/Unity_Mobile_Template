@@ -2,7 +2,8 @@
     "name": "Template.Services",
     "rootNamespace": "Template.Services",
     "references": [
-        "Template.Core"
+        "Template.Core",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -12,5 +13,6 @@
     "autoReferenced": true,
     "defineConstraints": [],
     "versionDefines": [],
-    "noEngineReferences": false
+    "noEngineReferences": false,
+    "compilerOptions": "-nowarn:CS0619"
 }

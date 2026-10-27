@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Pool;
@@ -13,7 +14,7 @@ namespace Template.Services.Pooling
     /// Unity ObjectPool-backed implementation of IObjectPool. Wraps Unity's pool
     /// and adds IPoolable lifecycle calls.
     /// </summary>
-    internal sealed class UnityObjectPool<T> : IObjectPool<T> where T : class
+    internal sealed class UnityObjectPool<T> : Template.Core.Pooling.IObjectPool<T> where T : class
     {
         readonly UPool.ObjectPool<T> pool;
         readonly bool callPoolableLifecycle;
@@ -21,13 +22,16 @@ namespace Template.Services.Pooling
         public UnityObjectPool(Func<T> createFunc, Action<T> actionOnGet, Action<T> actionOnRelease,
             Action<T> actionOnDestroy, bool collectionCheck, int defaultCapacity, int maxSize)
         {
+            this.maxSize = maxSize;
             pool = new UPool.ObjectPool<T>(createFunc, actionOnGet, actionOnRelease, actionOnDestroy,
                 collectionCheck, defaultCapacity, maxSize);
             callPoolableLifecycle = typeof(IPoolable).IsAssignableFrom(typeof(T));
         }
 
         public int Count => pool.CountAll;
-        public int MaxSize => pool.MaxSize;
+        public int MaxSize => maxSize;
+
+        readonly int maxSize;
 
         public T Get()
         {
@@ -69,11 +73,11 @@ namespace Template.Services.Pooling
             await Task.Yield();
         }
 
-        public IObjectPool<T> GetPool<T>(string key) where T : class
+        public Template.Core.Pooling.IObjectPool<T> GetPool<T>(string key) where T : class
         {
             if (pools.TryGetValue(key, out var existing))
             {
-                return (IObjectPool<T>)existing;
+                return (Template.Core.Pooling.IObjectPool<T>)existing;
             }
 
             // Pool not found — caller must have registered the factory via Prewarm first

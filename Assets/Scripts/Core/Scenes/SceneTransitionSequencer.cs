@@ -64,6 +64,13 @@ namespace Template.Core.Scenes
                 }
 
                 await overlay.FadeInAsync(token).ConfigureAwait(true);
+
+                if (!overlay.IsVisible)
+                {
+                    throw new InvalidOperationException(
+                        "The transition overlay hid itself during fade-in; the fresh scene would be" +
+                        " revealed before its first frame is drawn.");
+                }
             }
         }
 
